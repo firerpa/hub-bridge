@@ -13,6 +13,7 @@ import random
 import traceback
 
 from collections import OrderedDict
+from tornado import httputil
 from tornado.web import Application
 from tornado.options import define, options
 from tornado.web import HTTPError
@@ -30,22 +31,22 @@ logger = logging.getLogger()
 
 errors = {}
 # ztnet
-errors["E40101"] = "Invalid super secret"
-errors["E40403"] = "No such service token"
-errors["E40404"] = "No such node token"
-errors["E40006"] = "This token is bounded to another client"
-errors["E40007"] = "Duplicate ip address"
-errors["E40008"] = "The network address for this token is not set"
-errors["E40009"] = "Maximum allowed nodes exceeded"
-errors["E40010"] = "Network is not configured"
-errors["E40011"] = "Invalid ip address"
-errors["E40012"] = "Exceed max node config entries"
-errors["E40013"] = "Unable to set configuration for attached node"
-errors["E40014"] = "Value cannot contain spaces"
-errors["E40015"] = "Network is already configured"
-errors["E40016"] = "Network too small or invalid"
-errors["E40018"] = "Network is disabled"
-errors["E40019"] = "Network is already disabled"
+errors["401001"] = "Invalid super secret"
+errors["404001"] = "No such service token"
+errors["404002"] = "No such node token"
+errors["400006"] = "This token is bounded to another client"
+errors["400007"] = "Duplicate ip address"
+errors["400008"] = "The network address for this token is not set"
+errors["400009"] = "Maximum allowed nodes exceeded"
+errors["400010"] = "Network is not configured"
+errors["400011"] = "Invalid ip address"
+errors["400012"] = "Exceed max node config entries"
+errors["400013"] = "Unable to set configuration for attached node"
+errors["400014"] = "Value cannot contain spaces"
+errors["400015"] = "Network is already configured"
+errors["400016"] = "Network too small or invalid"
+errors["400018"] = "Network is disabled"
+errors["400019"] = "Network is already disabled"
 
 
 cur_dir = os.path.dirname(__file__)
@@ -120,16 +121,14 @@ class BaseHttpService(tornado.web.RequestHandler):
 
     def write_error(self, status, exc_info=None,
                                         **kwargs):
-        if status == 500:
-            self._reason = "E50000"
-        if status == 400 and not self._reason.startswith("E40"):
-            self._reason = "E40000"
+        error = self._reason
+        self._reason = httputil.responses.get(status, "Unknown")
         try:
-            self.tell({"status": status, "error": self._reason,
+            self.tell({"status": status, "error": error,
                      "message": exc_info[1].log_message})
         except AttributeError:
             traceback.print_exception(*exc_info)
-            self.tell({"status": 500, "error": "E50000",
+            self.tell({"status": 500, "error": "500000",
                      "message": "Internal Server Error"})
 
     def __init__(self, *args, **kwargs):
@@ -201,48 +200,48 @@ class TopBaseUtilService(BaseHttpService):
     def get_node_by_token(self, token):
         r = NetworkNode.select().where(NetworkNode.token==token
                                                 ).get_or_none()
-        r or self.throw(404, "E40404")
+        r or self.throw(404, "404002")
         return r
     def check_node_belong_cid(self, r, cid):
         condition = r.client_id and cid != r.client_id
-        condition and self.throw(400, "E40006")
+        condition and self.throw(400, "400006")
     def check_node_ip46_set(self, r):
         condition = r.ip_v4 and r.ip_v6
-        condition or self.throw(400, "E40008")
+        condition or self.throw(400, "400008")
     def get_net_by_token(self, token):
         r = Network.select().where(Network.token==token
                                    ).get_or_none()
-        r or self.throw(404, "E40403")
+        r or self.throw(404, "404001")
         return r
     def convert_value(self, val):
         s = json.dumps(val, separators=(",", ":"))
         return val if isinstance(val, str) else s
     def check_net_node_limit(self, r):
         condition = r.nodes.count() <= r.limit # allow 1 more
-        condition or self.throw(400, "E40009")
-    def check_net_disabled(self, r, e="E40018"):
+        condition or self.throw(400, "400009")
+    def check_net_disabled(self, r, e="400018"):
         condition = not r.disabled
-        condition or self.throw(400, "E40018")
+        condition or self.throw(400, "400018")
     def check_network_configured(self, r):
         condition = r.network and r.network_v6
-        condition or self.throw(400, "E40010")
+        condition or self.throw(400, "400010")
     def check_network_not_configured(self, r):
         condition = r.network or r.network_v6
-        condition and self.throw(400, "E40015")
+        condition and self.throw(400, "400015")
     def check_value_contains_space(self, value):
         condition = re.search("\s", self.convert_value(value))
-        condition and self.throw(400, "E40014")
+        condition and self.throw(400, "400014")
     def check_config_client_attached(self, r):
         condition = r.client_id
-        condition and self.throw(400, "E40013")
+        condition and self.throw(400, "400013")
     def check_node_max_config_entries(self, r, count, inc=1):
         condition = r.cfgs.count() + inc > count
-        condition and self.throw(400, "E40012")
+        condition and self.throw(400, "400012")
     def get_network_node(self, network, node):
         n = self.get_net_by_token(network)
         r = NetworkNode.select().where((NetworkNode.token==node)
                         & (NetworkNode.network==n)).get_or_none()
-        r or self.throw(404, "E40404")
+        r or self.throw(404, "404002")
         return r
     def get_ctl_by_node(self, r):
         pub  = r.network.endpoint.pub
@@ -257,12 +256,12 @@ class TopBaseUtilService(BaseHttpService):
     def check_ip_in_network(self, ip, network):
         addr = self.to_ipaddress(ip)
         r = addr in ip_network(network)
-        r or self.throw(400, "E40011", f"Invalid ip address {ip}")
+        r or self.throw(400, "400011", f"Invalid ip address {ip}")
     def check_ip_duplicate(self, ip, net, token):
         r = net.nodes.where(NetworkNode.token != token
                                ).where((NetworkNode.ip_v4==ip) \
                                      | (NetworkNode.ip_v6==ip)).exists()
-        r and self.throw(400, "E40007", f"Duplicate ip address {ip}")
+        r and self.throw(400, "400007", f"Duplicate ip address {ip}")
     @ignore_exception(ip_address("0.0.0.0"))
     def to_ipaddress(self, ip):
         return ip_address(ip)
@@ -303,7 +302,7 @@ class TopBaseUtilService(BaseHttpService):
         return net.num_addresses
     def check_netrange_big_enough(self, network):
         if self.num_net_addresses(network) < 256:
-            self.throw(400, "E40016", "Network too small or invalid {}"
+            self.throw(400, "400016", "Network too small or invalid {}"
                                       .format(network))
 
 
@@ -566,7 +565,7 @@ class TopNetworkService(TopBaseUtilService):
 class TopSuperviseService(TopBaseUtilService):
     def check_super_secret(self):
        r = self.get_api_argument("secret") == self.super_secret
-       r or self.throw(401, "E40101")
+       r or self.throw(401, "401001")
     def api_createNetwork(self):
         self.check_super_secret()
         endpoint = NetworkEndpoint.select().order_by(
@@ -591,7 +590,7 @@ class TopSuperviseService(TopBaseUtilService):
         self.check_super_secret()
         network = self.get_api_argument("network")
         net = self.get_net_by_token(network)
-        self.check_net_disabled(net, e="E40019")
+        self.check_net_disabled(net, e="400019")
         network_disable.s(net.id).apply_async()
         data = dict()
         data["token"] = network
