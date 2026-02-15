@@ -53,7 +53,7 @@ NetworkEndpoint.create_table()
 NetworkEndpoint(control_endpoint='127.0.0.1:${BRIDGE}',
                 control_auth='${AUTHTOKEN}',
                 s='${IPV4}/${BRIDGE}',
-                s_v6='${IPV6:-}/${BRIDGE}',
+                s_v6='${IPV6:-}/${BRIDGE}' if '${IPV6:-}' else None,
                 s_tf='${IPV4}/${FALLBACK}',
                 pub='${IDENTITY}',
                 active=1
@@ -85,7 +85,7 @@ echo -e "Your super secret key: \033[1;32m${SECRET}\033[0m"
 echo
 echo -e "\033[1;31mPlease remember and save the above information.\033[0m"
 echo
-echo "Please ensure that your firewall:"
+echo "Please ensure that your firewall (IPV4 + IPV6):"
 echo
 printf "=====================================\n"
 printf "|%-13s|%-8s|\033[1;32m%-14s\033[0m|\n" "${API}" "TCP" "✓"
