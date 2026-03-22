@@ -7,7 +7,7 @@ from playhouse.shortcuts import model_to_dict
 database = SqliteDatabase("/data/database.db", pragmas={
                                         "foreign_keys": "1",
                                         "locking_mode": "NORMAL",
-                                        "journal_mod": "wal",
+                                        "journal_mode": "wal",
                                         "synchronous": "NORMAL"})
 
 class BaseDatabaseModel(Model):
